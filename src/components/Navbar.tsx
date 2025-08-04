@@ -1,12 +1,32 @@
 import { useState } from 'react';
-import { Heart, Menu, X, MessageCircle, User, Sparkles } from 'lucide-react';
+import { Heart, Menu, X, MessageCircle, User, Sparkles, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully",
+      });
+      navigate('/');
+    }
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -56,20 +76,42 @@ const Navbar = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button 
-              variant="ghost"
-              onClick={() => navigate('/auth')}
-              className="hover:bg-muted/70"
-            >
-              <User className="h-4 w-4 mr-2" />
-              Sign In
-            </Button>
-            <Button 
-              onClick={() => navigate('/auth?mode=signup')}
-              className="bg-gradient-primary hover:opacity-90 shadow-soft hover:shadow-medium transition-all duration-300"
-            >
-              Get Started
-            </Button>
+            {user ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/dashboard')}
+                  className="hover:bg-accent/50"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleSignOut}
+                  className="hover:bg-accent/50"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/auth')}
+                  className="hover:bg-accent/50"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  onClick={() => navigate('/auth')}
+                  className="bg-gradient-primary hover:opacity-90 shadow-soft"
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}

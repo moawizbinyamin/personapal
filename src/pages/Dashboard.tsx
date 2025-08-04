@@ -1,16 +1,99 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Sparkles, MessageCircle, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
-import { Persona } from '@/data/personas';
+import PersonaCreator from '@/components/PersonaCreator';
+import { Persona, defaultPersonas } from '@/data/personas';
+import { supabase } from '@/lib/supabase';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'create'>('chat');
+  const [customPersonas, setCustomPersonas] = useState<Persona[]>([]);
+  const [allPersonas, setAllPersonas] = useState<Persona[]>(defaultPersonas);
+  const [stats, setStats] = useState({
+    totalConversations: 0,
+    customPersonas: 0,
+    activeToday: 0,
+  });
+  
+  const { user } = useAuthContext();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    
+    fetchCustomPersonas();
+    fetchStats();
+  }, [user, navigate]);
+
+  const fetchCustomPersonas = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('personas')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      const personas = data as Persona[];
+      setCustomPersonas(personas);
+      setAllPersonas([...defaultPersonas, ...personas]);
+    } catch (error) {
+      console.error('Error fetching custom personas:', error);
+    }
+  };
+
+  const fetchStats = async () => {
+    if (!user) return;
+
+    try {
+      // Get conversation count
+      const { count: conversationCount } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      // Get custom personas count
+      const { count: personaCount } = await supabase
+        .from('personas')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      // Get today's conversations
+      const today = new Date().toISOString().split('T')[0];
+      const { count: todayCount } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', today);
+
+      setStats({
+        totalConversations: conversationCount || 0,
+        customPersonas: personaCount || 0,
+        activeToday: todayCount || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
 
   const handlePersonaSelect = (persona: Persona) => {
-    console.log('Starting chat with:', persona.name);
+    navigate(`/chat/${persona.id}`);
+  };
+
+  const handlePersonaCreated = () => {
+    fetchCustomPersonas();
+    fetchStats();
+    setActiveTab('chat');
   };
 
   return (
@@ -36,8 +119,10 @@ const Dashboard = () => {
                 <MessageCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-muted-foreground">Connect Supabase to track</p>
+                <div className="text-2xl font-bold">{stats.totalConversations}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.totalConversations === 0 ? 'Start your first chat!' : 'Keep chatting!'}
+                </p>
               </CardContent>
             </Card>
             <Card className="bg-gradient-card shadow-soft">
@@ -46,8 +131,10 @@ const Dashboard = () => {
                 <User className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-muted-foreground">Create your first persona</p>
+                <div className="text-2xl font-bold">{stats.customPersonas}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.customPersonas === 0 ? 'Create your first persona' : 'Amazing creativity!'}
+                </p>
               </CardContent>
             </Card>
             <Card className="bg-gradient-card shadow-soft">
@@ -56,8 +143,10 @@ const Dashboard = () => {
                 <Sparkles className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-muted-foreground">Start chatting!</p>
+                <div className="text-2xl font-bold">{stats.activeToday}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.activeToday === 0 ? 'Start chatting today!' : 'Great progress today!'}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -85,28 +174,13 @@ const Dashboard = () => {
           {/* Content */}
           {activeTab === 'chat' ? (
             <PersonaGrid 
+              personas={allPersonas}
               onPersonaSelect={handlePersonaSelect}
               title="Available Personas"
               subtitle="Select a persona to start a conversation"
             />
           ) : (
-            <Card className="max-w-2xl mx-auto bg-gradient-card shadow-medium">
-              <CardHeader>
-                <CardTitle>Create Custom Persona</CardTitle>
-                <CardDescription>
-                  Connect Supabase to unlock persona creation with AI-powered system prompts
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-12">
-                <Sparkles className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-6">
-                  Persona creation will be available once you connect to Supabase
-                </p>
-                <Button variant="outline">
-                  Connect Supabase to Continue
-                </Button>
-              </CardContent>
-            </Card>
+            <PersonaCreator onPersonaCreated={handlePersonaCreated} />
           )}
         </div>
       </div>

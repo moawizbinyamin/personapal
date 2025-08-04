@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Persona } from '@/data/personas';
+import { generatePersonaResponse } from '@/lib/gemini';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface Message {
   id: string;
@@ -19,6 +22,7 @@ interface ChatInterfaceProps {
 }
 
 const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
+  const { user } = useAuthContext();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -29,6 +33,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -49,43 +54,37 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
     return greetings[persona.id as keyof typeof greetings] || "I'm excited to chat with you today! What would you like to talk about?";
   }
 
-  const simulatePersonaResponse = (userMessage: string): string => {
-    // This is a simple simulation - in real app, this would call Gemini API
-    const responses = {
-      maya: [
-        "That sounds really meaningful to you. Tell me more about how that makes you feel?",
-        "I can hear the emotion in your words. You're being so brave by sharing this with me.",
-        "That's such a beautiful way to look at it! I love how thoughtful you are about these things.",
-        "I'm here for you, and I want you to know that your feelings are completely valid. 💕"
-      ],
-      theo: [
-        "That's a fascinating perspective. Have you considered how this might relate to the broader question of human purpose?",
-        "Your question touches on something philosophers have pondered for centuries. What draws you to think about this?",
-        "This reminds me of what Marcus Aurelius once wrote... How do you think that applies to your situation?",
-        "There's wisdom in your uncertainty. Sometimes the questions are more valuable than the answers."
-      ],
-      blaze: [
-        "YES! That's the spirit I love to hear! 🔥 You've got this, champion!",
-        "That's EXACTLY the kind of mindset that creates real change! I'm so proud of you!",
-        "Every small step counts! You're building momentum and that's what matters! 💪",
-        "I believe in you 100%! Let's channel that energy into something amazing!"
-      ],
-      nia: [
-        "Oh, that sounds absolutely delicious! I love how creative you're being in the kitchen! 🍳",
-        "That's such a wonderful approach to cooking! Food really is about bringing joy and nourishment.",
-        "I'm so excited about this! Cooking is one of life's greatest pleasures, don't you think?",
-        "That reminds me of a technique my grandmother used to use... let me share that with you!"
-      ]
-    };
+  const saveConversation = async (updatedMessages: Message[]) => {
+    if (!user) return;
 
-    const personaResponses = responses[persona.id as keyof typeof responses] || [
-      "That's really interesting! Tell me more about that.",
-      "I love hearing your perspective on this.",
-      "What an insightful thing to share with me!",
-      "That's given me something wonderful to think about."
-    ];
+    try {
+      const conversationData = {
+        user_id: user.id,
+        persona_id: persona.id,
+        title: `Chat with ${persona.name}`,
+        messages: updatedMessages,
+      };
 
-    return personaResponses[Math.floor(Math.random() * personaResponses.length)];
+      if (conversationId) {
+        // Update existing conversation
+        await supabase
+          .from('conversations')
+          .update({ messages: updatedMessages })
+          .eq('id', conversationId);
+      } else {
+        // Create new conversation
+        const { data, error } = await supabase
+          .from('conversations')
+          .insert(conversationData)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setConversationId(data.id);
+      }
+    } catch (error) {
+      console.error('Error saving conversation:', error);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -102,17 +101,44 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    // Generate AI response
+    try {
+      const conversationHistory = messages.map(msg => ({
+        role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.text,
+      }));
+
+      const response = await generatePersonaResponse(
+        persona.systemPrompt,
+        conversationHistory,
+        persona.name
+      );
+
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: simulatePersonaResponse(inputValue),
+        text: response,
         sender: 'assistant',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, aiResponse]);
+
+      const updatedMessages = [...messages, userMessage, aiResponse];
+      setMessages(updatedMessages);
+      
+      // Save conversation if user is logged in
+      await saveConversation(updatedMessages);
+      
       setIsTyping(false);
-    }, 1000 + Math.random() * 2000);
+    } catch (error) {
+      console.error('Error generating response:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm sorry, I'm having trouble responding right now. Please try again.",
+        sender: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+      setIsTyping(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -155,7 +181,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
             
             <Badge variant="secondary" className="hidden sm:flex items-center space-x-1">
               <Heart className="h-3 w-3" />
-              <span>Demo Mode</span>
+              <span>{user ? 'AI Powered' : 'Demo Mode'}</span>
             </Badge>
           </div>
         </div>
@@ -241,9 +267,11 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
             </Button>
           </div>
           
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            This is a demo using simulated responses. Connect Supabase to enable real AI conversations!
-          </p>
+          {!user && (
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Demo mode with simulated responses. Sign in to access real AI conversations!
+            </p>
+          )}
         </div>
       </div>
     </div>
