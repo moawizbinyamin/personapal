@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Sparkles, MessageCircle, User } from 'lucide-react';
+import { Plus, Sparkles, MessageCircle, User, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
 import PersonaCreator from '@/components/PersonaCreator';
@@ -19,6 +20,7 @@ const Dashboard = () => {
     customPersonas: 0,
     activeToday: 0,
   });
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
   
   const { user } = useAuthContext();
   const navigate = useNavigate();
@@ -28,6 +30,9 @@ const Dashboard = () => {
       navigate('/auth');
       return;
     }
+    
+    // Check if Gemini API key is available
+    setHasGeminiKey(!!import.meta.env.VITE_GEMINI_API_KEY);
     
     fetchCustomPersonas();
     fetchStats();
@@ -101,6 +106,18 @@ const Dashboard = () => {
       <Navbar />
       <div className="pt-8 pb-16">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          {!hasGeminiKey && (
+            <Alert className="mb-6 border-orange-200 bg-orange-50 text-orange-800">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Gemini API Key Required</AlertTitle>
+              <AlertDescription>
+                To enable AI chat functionality, please add your Gemini API key to the environment variable 
+                <code className="mx-1 px-1 bg-orange-100 rounded">VITE_GEMINI_API_KEY</code>. 
+                Get your free API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline font-medium">Google AI Studio</a>.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {/* Welcome Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold bg-gradient-hero bg-clip-text text-transparent mb-2">
@@ -165,6 +182,7 @@ const Dashboard = () => {
               variant={activeTab === 'create' ? 'default' : 'outline'}
               onClick={() => setActiveTab('create')}
               className={activeTab === 'create' ? 'bg-gradient-primary' : ''}
+              disabled={!hasGeminiKey}
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Persona

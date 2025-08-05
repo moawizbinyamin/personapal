@@ -1,8 +1,9 @@
 import { defaultPersonas, Persona } from '@/data/personas';
 import PersonaCard from './PersonaCard';
+import { useNavigate } from 'react-router-dom';
 
 interface PersonaGridProps {
-  onPersonaSelect: (persona: Persona) => void;
+  onPersonaSelect?: (persona: Persona) => void;
   title?: string;
   subtitle?: string;
   personas?: Persona[];
@@ -16,6 +17,15 @@ const PersonaGrid = ({
   personas = defaultPersonas,
   className = ""
 }: PersonaGridProps) => {
+  const navigate = useNavigate();
+
+  const handlePersonaClick = (persona: Persona) => {
+    if (onPersonaSelect) {
+      onPersonaSelect(persona);
+    } else {
+      navigate(`/chat/${persona.id}`);
+    }
+  };
   return (
     <section className={`py-16 bg-background ${className}`}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -33,7 +43,7 @@ const PersonaGrid = ({
             <PersonaCard
               key={persona.id}
               persona={persona}
-              onChat={onPersonaSelect}
+              onChat={handlePersonaClick}
               className="animate-fade-in"
             />
           ))}

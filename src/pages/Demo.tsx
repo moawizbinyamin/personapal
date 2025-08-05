@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
 import ChatInterface from '@/components/ChatInterface';
 import { Persona } from '@/data/personas';
 
 const Demo = () => {
+  const navigate = useNavigate();
   const location = useLocation();
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(
     location.state?.selectedPersona || null

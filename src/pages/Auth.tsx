@@ -1,22 +1,58 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { signUp, signIn, user } = useAuthContext();
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  if (user) {
+    navigate('/dashboard');
+    return null;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This will be connected to Supabase authentication
-    console.log('Auth attempt:', { email, password, name, isSignUp });
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        await signUp(email, password, name);
+        toast({
+          title: "Success!",
+          description: "Account created successfully. You can now start chatting with AI personas!",
+        });
+        navigate('/dashboard');
+      } else {
+        await signIn(email, password);
+        toast({
+          title: "Welcome back!",
+          description: "You're now signed in to PersonaPal.",
+        });
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred during authentication",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,8 +112,19 @@ const Auth = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90 shadow-soft">
-                  {isSignUp ? 'Create Account' : 'Sign In'}
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-primary hover:opacity-90 shadow-soft"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      {isSignUp ? 'Creating Account...' : 'Signing In...'}
+                    </div>
+                  ) : (
+                    isSignUp ? 'Create Account' : 'Sign In'
+                  )}
                 </Button>
               </form>
               <div className="mt-6 text-center">
@@ -93,7 +140,7 @@ const Auth = () => {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground text-center mt-4">
-                Connect Supabase to enable authentication
+                Powered by Supabase & Gemini AI
               </p>
             </CardContent>
           </Card>

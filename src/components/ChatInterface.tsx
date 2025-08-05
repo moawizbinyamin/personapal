@@ -128,11 +128,11 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
       await saveConversation(updatedMessages);
       
       setIsTyping(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating response:', error);
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: "I'm sorry, I'm having trouble responding right now. Please try again.",
+        text: error.message || "I'm sorry, I'm having trouble responding right now. Please check your Gemini API key and try again.",
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -181,7 +181,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
             
             <Badge variant="secondary" className="hidden sm:flex items-center space-x-1">
               <Heart className="h-3 w-3" />
-              <span>{user ? 'AI Powered' : 'Demo Mode'}</span>
+              <span>AI Powered by Gemini</span>
             </Badge>
           </div>
         </div>
@@ -267,11 +267,9 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
             </Button>
           </div>
           
-          {!user && (
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              Demo mode with simulated responses. Sign in to access real AI conversations!
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Powered by Gemini AI - Add your API key to enable conversations
+          </p>
         </div>
       </div>
     </div>
