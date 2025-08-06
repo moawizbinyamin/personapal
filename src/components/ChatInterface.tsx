@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Persona } from '@/data/personas';
+import { Persona } from '@/utils/types';
 import { generatePersonaResponse } from '@/lib/gemini';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   id: string;
@@ -54,34 +54,48 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
     return greetings[persona.id as keyof typeof greetings] || "I'm excited to chat with you today! What would you like to talk about?";
   }
 
-  const saveConversation = async (updatedMessages: Message[]) => {
-    if (!user) return;
+  const saveConversation = async (messages: Message[]) => {
+    if (!user || messages.length === 0) return;
 
     try {
-      const conversationData = {
-        user_id: user.id,
-        persona_id: persona.id,
-        title: `Chat with ${persona.name}`,
-        messages: updatedMessages,
-      };
+      // Create or find a chat for this user and persona
+      let chatId;
+      
+      const { data: existingChat } = await supabase
+        .from('chats')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('persona_id', persona.id)
+        .single();
 
-      if (conversationId) {
-        // Update existing conversation
-        await supabase
-          .from('conversations')
-          .update({ messages: updatedMessages })
-          .eq('id', conversationId);
+      if (existingChat) {
+        chatId = existingChat.id;
       } else {
-        // Create new conversation
-        const { data, error } = await supabase
-          .from('conversations')
-          .insert(conversationData)
-          .select()
+        const { data: newChat, error: chatError } = await supabase
+          .from('chats')
+          .insert({
+            user_id: user.id,
+            persona_id: persona.id,
+          })
+          .select('id')
           .single();
 
-        if (error) throw error;
-        setConversationId(data.id);
+        if (chatError) throw chatError;
+        chatId = newChat.id;
       }
+
+      // Save all messages to the messages table
+      const messageInserts = messages.map(msg => ({
+        chat_id: chatId,
+        content: msg.text,
+        sender: msg.sender,
+      }));
+
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .insert(messageInserts);
+
+      if (messagesError) throw messagesError;
     } catch (error) {
       console.error('Error saving conversation:', error);
     }
@@ -109,7 +123,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
       }));
 
       const response = await generatePersonaResponse(
-        persona.systemPrompt,
+        persona.system_prompt,
         conversationHistory,
         persona.name
       );

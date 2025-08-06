@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Navbar from '@/components/Navbar';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { cleanupAuthState } from '@/utils/auth';
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
@@ -29,20 +30,34 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Clean up any existing auth state
+      cleanupAuthState();
+
       if (isSignUp) {
-        await signUp(email, password, name);
+        const { data, error } = await signUp(email, password, name);
+        if (error) throw error;
+        
         toast({
           title: "Success!",
-          description: "Account created successfully. You can now start chatting with AI personas!",
+          description: "Account created successfully. Please check your email to verify your account.",
         });
-        navigate('/dashboard');
+        
+        // If user is immediately available, redirect to dashboard
+        if (data?.user) {
+          window.location.href = '/dashboard';
+        }
       } else {
-        await signIn(email, password);
+        const { data, error } = await signIn(email, password);
+        if (error) throw error;
+        
         toast({
           title: "Welcome back!",
           description: "You're now signed in to PersonaPal.",
         });
-        navigate('/dashboard');
+        
+        if (data?.user) {
+          window.location.href = '/dashboard';
+        }
       }
     } catch (error: any) {
       toast({

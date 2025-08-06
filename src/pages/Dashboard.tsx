@@ -6,8 +6,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
 import PersonaCreator from '@/components/PersonaCreator';
-import { Persona, defaultPersonas } from '@/data/personas';
-import { supabase } from '@/lib/supabase';
+import { Persona, transformPersona } from '@/utils/types';
+import { defaultPersonas } from '@/data/personas';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,7 +50,7 @@ const Dashboard = () => {
 
       if (error) throw error;
       
-      const personas = data as Persona[];
+      const personas = data.map(transformPersona);
       setCustomPersonas(personas);
       setAllPersonas([...defaultPersonas, ...personas]);
     } catch (error) {
@@ -61,9 +62,9 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-      // Get conversation count
+      // Get chat count
       const { count: conversationCount } = await supabase
-        .from('conversations')
+        .from('chats')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
@@ -73,10 +74,10 @@ const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
-      // Get today's conversations
+      // Get today's chats
       const today = new Date().toISOString().split('T')[0];
       const { count: todayCount } = await supabase
-        .from('conversations')
+        .from('chats')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .gte('created_at', today);

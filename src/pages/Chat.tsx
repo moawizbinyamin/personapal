@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ChatInterface from '@/components/ChatInterface';
-import { Persona, defaultPersonas, getPersonaById } from '@/data/personas';
-import { supabase } from '@/lib/supabase';
+import { Persona, transformPersona } from '@/utils/types';
+import { getPersonaById } from '@/data/personas';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 const Chat = () => {
@@ -41,7 +42,7 @@ const Chat = () => {
           return;
         }
 
-        setPersona(data as Persona);
+        setPersona(transformPersona(data));
       } catch (error) {
         console.error('Error fetching persona:', error);
         navigate('/');

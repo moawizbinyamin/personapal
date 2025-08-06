@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { signOutCleanly } from '@/utils/auth';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -12,19 +13,18 @@ const Navbar = () => {
   const location = useLocation();
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
+    try {
+      await signOutCleanly();
       toast({
-        title: "Error",
+        title: "Signed out",
+        description: "You've been successfully signed out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error", 
         description: "Failed to sign out",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Signed out",
-        description: "You have been signed out successfully",
-      });
-      navigate('/');
     }
   };
 
