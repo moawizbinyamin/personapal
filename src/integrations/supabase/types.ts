@@ -41,6 +41,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       messages: {
@@ -117,6 +124,41 @@ export type Database = {
           title?: string | null
           tone?: string | null
           user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personas_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
         }
         Relationships: []
       }
