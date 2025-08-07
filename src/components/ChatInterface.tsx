@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Persona } from '@/utils/types';
-import { generatePersonaResponse } from '@/lib/gemini';
+import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -23,6 +23,7 @@ interface ChatInterfaceProps {
 
 const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
   const { user } = useAuthContext();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -115,22 +116,26 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
     setInputValue('');
     setIsTyping(true);
 
-    // Generate AI response
+    // Generate AI response using Supabase edge function
     try {
       const conversationHistory = messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.text,
       }));
 
-      const response = await generatePersonaResponse(
-        persona.system_prompt,
-        conversationHistory,
-        persona.name
-      );
+      const { data, error } = await supabase.functions.invoke('gemini-chat', {
+        body: {
+          systemPrompt: persona.system_prompt,
+          messages: conversationHistory,
+          personaName: persona.name
+        }
+      });
+
+      if (error) throw error;
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: response,
+        text: data.response,
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -144,9 +149,14 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
       setIsTyping(false);
     } catch (error: any) {
       console.error('Error generating response:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI response. Please try again.",
+        variant: "destructive",
+      });
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: error.message || "I'm sorry, I'm having trouble responding right now. Please check your Gemini API key and try again.",
+        text: "I'm sorry, I'm having trouble responding right now. Please try again.",
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -282,7 +292,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
           </div>
           
           <p className="text-xs text-muted-foreground mt-2 text-center">
-            Powered by Gemini AI - Add your API key to enable conversations
+            Powered by Gemini AI
           </p>
         </div>
       </div>
