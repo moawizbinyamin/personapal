@@ -6,9 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { generateSystemPrompt } from '@/lib/gemini';
 import { toast } from '@/hooks/use-toast';
 
 interface PersonaCreatorProps {
@@ -73,14 +72,13 @@ const PersonaCreator = ({ onPersonaCreated }: PersonaCreatorProps) => {
     try {
       const personalityArray = formData.personality.split(',').map(t => t.trim()).filter(Boolean);
       
-      // Generate system prompt using Gemini
-      const systemPrompt = await generateSystemPrompt(
-        formData.name,
-        formData.title,
-        formData.description,
-        personalityArray,
-        formData.tone
-      );
+      // Generate system prompt
+      const systemPrompt = `You are ${formData.name}, a ${formData.title}. ${formData.description}
+
+Your personality traits include: ${personalityArray.join(', ')}.
+Your communication tone is ${formData.tone}.
+
+You should respond in character as this persona, maintaining consistent personality and tone throughout the conversation. Be helpful, engaging, and stay true to your character description.`;
 
       const { error } = await supabase
         .from('personas')
@@ -95,10 +93,12 @@ const PersonaCreator = ({ onPersonaCreated }: PersonaCreatorProps) => {
           system_prompt: systemPrompt,
           example_dialogues: [],
           user_id: user.id,
-          is_public: false,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       toast({
         title: "Success!",

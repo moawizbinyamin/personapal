@@ -73,15 +73,26 @@ serve(async (req) => {
     );
 
     const data = await response.json();
+    console.log('Gemini API response:', data);
     
     if (!response.ok) {
+      console.error('Gemini API error:', data);
       throw new Error(data.error?.message || 'Failed to generate response');
     }
 
-    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'I apologize, but I couldn\'t generate a response right now.';
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!generatedText || generatedText.trim() === '') {
+      console.error('Empty response from Gemini API');
+      return new Response(JSON.stringify({ 
+        response: "I apologize, but I'm having trouble generating a response right now. Please try again." 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     return new Response(
-      JSON.stringify({ response: generatedText }),
+      JSON.stringify({ response: generatedText.trim() }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }

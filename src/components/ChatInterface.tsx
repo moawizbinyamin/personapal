@@ -118,7 +118,7 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
 
     // Generate AI response using Supabase edge function
     try {
-      const conversationHistory = messages.map(msg => ({
+      const conversationHistory = [...messages, userMessage].map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.text,
       }));
