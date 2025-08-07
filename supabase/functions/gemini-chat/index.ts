@@ -30,6 +30,29 @@ serve(async (req) => {
       );
     }
 
+    // Format messages correctly for Gemini API
+    const contents = [
+      // System prompt as first user message
+      {
+        role: "user",
+        parts: [{ text: systemPrompt }]
+      },
+      {
+        role: "model", 
+        parts: [{ text: "I understand. I'll respond as this persona." }]
+      }
+    ];
+
+    // Add conversation history with proper role mapping
+    messages.forEach((msg: Message) => {
+      contents.push({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      });
+    });
+
+    console.log('Sending to Gemini API:', JSON.stringify(contents, null, 2));
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
       {
@@ -38,14 +61,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: systemPrompt }]
-            },
-            ...messages.map((msg: Message) => ({
-              parts: [{ text: `${msg.role}: ${msg.content}` }]
-            })),
-          ],
+          contents,
           generationConfig: {
             temperature: 0.7,
             topP: 0.8,
