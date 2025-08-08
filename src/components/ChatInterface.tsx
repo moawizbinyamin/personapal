@@ -8,6 +8,7 @@ import { Persona } from '@/utils/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { generateResponse, type ChatMessage } from '@/lib/gemini';
 
 interface Message {
   id: string;
@@ -56,54 +57,16 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
   }
 
   const saveConversation = async (messages: Message[]) => {
-    if (!user || messages.length === 0) return;
-
-    try {
-      // Create or find a chat for this user and persona
-      let chatId;
-      
-      const { data: existingChat } = await supabase
-        .from('chats')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('persona_id', persona.id)
-        .single();
-
-      if (existingChat) {
-        chatId = existingChat.id;
-      } else {
-        const { data: newChat, error: chatError } = await supabase
-          .from('chats')
-          .insert({
-            user_id: user.id,
-            persona_id: persona.id,
-          })
-          .select('id')
-          .single();
-
-        if (chatError) throw chatError;
-        chatId = newChat.id;
-      }
-
-      // Save all messages to the messages table
-      const messageInserts = messages.map(msg => ({
-        chat_id: chatId,
-        content: msg.text,
-        sender: msg.sender,
-      }));
-
-      const { error: messagesError } = await supabase
-        .from('messages')
-        .insert(messageInserts);
-
-      if (messagesError) throw messagesError;
-    } catch (error) {
-      console.error('Error saving conversation:', error);
-    }
+    // Temporarily disabled - database schema needs to be set up properly
+    console.log('Conversation saving disabled - messages:', messages.length);
+    return;
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isTyping) return;
+
+    console.log('Sending message:', inputValue);
+    console.log('Current messages count:', messages.length);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -112,46 +75,55 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Store current messages + new user message for conversation history
+    const currentMessages = [...messages, userMessage];
+    
+    setMessages(currentMessages);
     setInputValue('');
     setIsTyping(true);
 
-    // Generate AI response using Supabase edge function
+    // Generate AI response using client-side Gemini API
     try {
-      const conversationHistory = [...messages, userMessage].map(msg => ({
+      const conversationHistory: ChatMessage[] = currentMessages.map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.text,
       }));
 
-      const { data, error } = await supabase.functions.invoke('gemini-chat', {
-        body: {
-          systemPrompt: persona.system_prompt,
-          messages: conversationHistory,
-          personaName: persona.name
-        }
-      });
+      console.log('Conversation history:', conversationHistory);
 
-      if (error) throw error;
+      const responseText = await generateResponse(
+        persona.system_prompt,
+        conversationHistory,
+        persona.name
+      );
+
+      console.log('AI response received:', responseText);
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: data.response,
+        text: responseText,
         sender: 'assistant',
         timestamp: new Date()
       };
 
-      const updatedMessages = [...messages, userMessage, aiResponse];
+      const updatedMessages = [...currentMessages, aiResponse];
       setMessages(updatedMessages);
       
       // Save conversation if user is logged in
-      await saveConversation(updatedMessages);
+      try {
+        await saveConversation(updatedMessages);
+      } catch (saveError) {
+        console.warn('Failed to save conversation:', saveError);
+      }
       
       setIsTyping(false);
+      console.log('Message handling complete');
     } catch (error: any) {
       console.error('Error generating response:', error);
+      setIsTyping(false);
       toast({
         title: "Error",
-        description: "Failed to generate AI response. Please try again.",
+        description: error.message || "Failed to generate AI response. Please try again.",
         variant: "destructive",
       });
       const errorResponse: Message = {
@@ -161,7 +133,6 @@ const ChatInterface = ({ persona, onBack }: ChatInterfaceProps) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
-      setIsTyping(false);
     }
   };
 

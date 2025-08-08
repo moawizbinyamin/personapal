@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
-import PersonaCreator from '@/components/PersonaCreator';
+import CustomPersonasGrid from '@/components/CustomPersonasGrid';
+import SimplePersonaCreator from '@/components/SimplePersonaCreator';
+import DebugPersonas from '@/components/DebugPersonas';
 import { Persona, transformPersona } from '@/utils/types';
 import { defaultPersonas } from '@/data/personas';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +18,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'create'>('chat');
   const [customPersonas, setCustomPersonas] = useState<Persona[]>([]);
   const [allPersonas, setAllPersonas] = useState<Persona[]>(defaultPersonas);
+  const [refreshKey, setRefreshKey] = useState(0); // Force re-render key
   const [stats, setStats] = useState({
     totalConversations: 0,
     customPersonas: 0,
@@ -35,26 +38,100 @@ const Dashboard = () => {
     // Check if Gemini API key is available
     setHasGeminiKey(!!import.meta.env.VITE_GEMINI_API_KEY);
     
+    // Migrate old localStorage personas to user-specific key (one-time migration)
+    const oldPersonas = localStorage.getItem('customPersonas');
+    const userPersonasKey = `customPersonas_${user.id}`;
+    const userPersonas = localStorage.getItem(userPersonasKey);
+    
+    if (oldPersonas && !userPersonas) {
+      console.log('Migrating old personas to user-specific storage...');
+      localStorage.setItem(userPersonasKey, oldPersonas);
+      localStorage.removeItem('customPersonas');
+    }
+    
     fetchCustomPersonas();
     fetchStats();
+    
+    // Listen for custom events to refresh personas
+    const handlePersonaCreated = () => {
+      console.log('Received personaCreated event, refreshing...');
+      fetchCustomPersonas();
+      fetchStats();
+    };
+    
+    window.addEventListener('personaCreated', handlePersonaCreated);
+    
+    return () => {
+      window.removeEventListener('personaCreated', handlePersonaCreated);
+    };
   }, [user, navigate]);
 
   const fetchCustomPersonas = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('❌ fetchCustomPersonas: No user found');
+      return;
+    }
 
+    console.log('🔍 fetchCustomPersonas called for user:', user.id, 'email:', user.email);
+    
     try {
+      // Get personas from user-specific localStorage key
+      const userPersonasKey = `customPersonas_${user.id}`;
+      console.log('🔑 Looking for localStorage key:', userPersonasKey);
+      
+      const localPersonasRaw = localStorage.getItem(userPersonasKey);
+      console.log('📦 Raw localStorage data:', localPersonasRaw);
+      
+      const localPersonas = JSON.parse(localPersonasRaw || '[]');
+      console.log('✅ Local personas found:', localPersonas.length, 'personas');
+      console.log('🎭 Local personas data:', localPersonas);
+      
+      // Also check for any old format personas (migration check)
+      const oldFormatPersonas = localStorage.getItem('customPersonas');
+      console.log('🔄 Old format check:', oldFormatPersonas ? 'Found old data' : 'No old data');
+      
+      // Try to get from database too
+      console.log('🗄️ Attempting database fetch...');
       const { data, error } = await supabase
         .from('personas')
         .select('*')
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      let allCustomPersonas = [...localPersonas];
       
-      const personas = data.map(transformPersona);
-      setCustomPersonas(personas);
-      setAllPersonas([...defaultPersonas, ...personas]);
+      if (!error && data) {
+        const dbPersonas = data.map(transformPersona);
+        console.log('🗄️ Database personas found:', dbPersonas.length, 'personas');
+        console.log('🗄️ Database personas data:', dbPersonas);
+        
+        // Combine local and database personas (avoid duplicates by ID)
+        const combinedPersonas = [...allCustomPersonas];
+        dbPersonas.forEach(dbPersona => {
+          if (!combinedPersonas.find(p => p.id === dbPersona.id)) {
+            combinedPersonas.push(dbPersona);
+          }
+        });
+        allCustomPersonas = combinedPersonas;
+      } else {
+        console.log('❌ Database fetch failed:', error);
+        console.log('📱 Using only local personas');
+      }
+      
+      console.log('🎯 Final custom personas count:', allCustomPersonas.length);
+      console.log('🎯 Final custom personas:', allCustomPersonas);
+      
+      setCustomPersonas(allCustomPersonas);
+      
+      const newAllPersonas = [...defaultPersonas, ...allCustomPersonas];
+      setAllPersonas(newAllPersonas);
+      console.log('🌟 All personas updated:', newAllPersonas.length, 'total (', defaultPersonas.length, 'default +', allCustomPersonas.length, 'custom)');
     } catch (error) {
-      console.error('Error fetching custom personas:', error);
+      console.error('💥 Error fetching custom personas:', error);
+      // Fallback to local storage only
+      const userPersonasKey = `customPersonas_${user.id}`;
+      const localPersonas = JSON.parse(localStorage.getItem(userPersonasKey) || '[]');
+      setCustomPersonas(localPersonas);
+      setAllPersonas([...defaultPersonas, ...localPersonas]);
     }
   };
 
@@ -68,11 +145,16 @@ const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
-      // Get custom personas count
-      const { count: personaCount } = await supabase
+      // Get custom personas count from database
+      const { count: dbPersonaCount } = await supabase
         .from('personas')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id);
+
+      // Get custom personas count from localStorage
+      const userPersonasKey = `customPersonas_${user.id}`;
+      const localPersonas = JSON.parse(localStorage.getItem(userPersonasKey) || '[]');
+      const totalCustomPersonas = (dbPersonaCount || 0) + localPersonas.length;
 
       // Get today's chats
       const today = new Date().toISOString().split('T')[0];
@@ -82,9 +164,11 @@ const Dashboard = () => {
         .eq('user_id', user.id)
         .gte('created_at', today);
 
+      console.log('Stats updated:', { conversationCount, dbPersonaCount, localPersonas: localPersonas.length, totalCustomPersonas });
+
       setStats({
         totalConversations: conversationCount || 0,
-        customPersonas: personaCount || 0,
+        customPersonas: totalCustomPersonas,
         activeToday: todayCount || 0,
       });
     } catch (error) {
@@ -96,9 +180,16 @@ const Dashboard = () => {
     navigate(`/chat/${persona.id}`);
   };
 
-  const handlePersonaCreated = () => {
-    fetchCustomPersonas();
-    fetchStats();
+  const handlePersonaCreated = async () => {
+    console.log('handlePersonaCreated called - refreshing personas...');
+    
+    // Force a re-fetch and re-render
+    setTimeout(async () => {
+      await fetchCustomPersonas();
+      fetchStats();
+      setRefreshKey(prev => prev + 1); // Force re-render
+    }, 100);
+    
     setActiveTab('chat');
   };
 
@@ -169,7 +260,16 @@ const Dashboard = () => {
             </Card>
           </div>
 
+          {/* Debug Info - Temporary */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+            <strong>🔧 Debug Info:</strong>
+            <br />• User ID: {user?.id}
+            <br />• Built-in personas: {defaultPersonas.length}
+            <br />• Dashboard stats show: {stats.customPersonas} custom personas
+          </div>
+
           {/* Tab Navigation */}
+          <DebugPersonas />
           <div className="flex space-x-4 mb-8">
             <Button
               variant={activeTab === 'chat' ? 'default' : 'outline'}
@@ -192,14 +292,29 @@ const Dashboard = () => {
 
           {/* Content */}
           {activeTab === 'chat' ? (
-            <PersonaGrid 
-              personas={allPersonas}
-              onPersonaSelect={handlePersonaSelect}
-              title="Available Personas"
-              subtitle="Select a persona to start a conversation"
-            />
+            <div className="space-y-16">
+              {/* Built-in Personas Section */}
+              <div>
+                <PersonaGrid 
+                  key={`builtin-${refreshKey}`}
+                  personas={defaultPersonas}
+                  onPersonaSelect={handlePersonaSelect}
+                  title="🤖 Built-in Personas"
+                  subtitle="Choose from our carefully crafted AI personalities"
+                />
+              </div>
+              
+              {/* Custom Personas Section */}
+              <div>
+                <CustomPersonasGrid 
+                  key={`custom-${refreshKey}`}
+                  onPersonaSelect={handlePersonaSelect}
+                  refreshTrigger={refreshKey}
+                />
+              </div>
+            </div>
           ) : (
-            <PersonaCreator onPersonaCreated={handlePersonaCreated} />
+            <SimplePersonaCreator onPersonaCreated={handlePersonaCreated} />
           )}
         </div>
       </div>

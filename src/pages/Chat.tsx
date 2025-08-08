@@ -28,6 +28,20 @@ const Chat = () => {
         return;
       }
 
+      // Then check custom personas from user-specific local storage first
+      if (user) {
+        const userPersonasKey = `customPersonas_${user.id}`;
+        const localPersonas = JSON.parse(localStorage.getItem(userPersonasKey) || '[]');
+        const localPersona = localPersonas.find((p: any) => p.id === personaId);
+        
+        if (localPersona) {
+          console.log('Found persona in localStorage:', localPersona);
+          setPersona(localPersona);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Then check custom personas from database
       try {
         const { data, error } = await supabase
@@ -37,11 +51,12 @@ const Chat = () => {
           .single();
 
         if (error || !data) {
-          console.error('Persona not found:', error);
+          console.error('Persona not found in database either:', error);
           navigate('/');
           return;
         }
 
+        console.log('Found persona in database:', data);
         setPersona(transformPersona(data));
       } catch (error) {
         console.error('Error fetching persona:', error);
