@@ -1,0 +1,17 @@
+# PersonaPal requirements
+
+# Supabase client for Python
+supabase-py
+
+# Google Generative AI (Gemini) client for Python
+google-generativeai
+
+# General API and web requests
+requests
+
+# For running/test FastAPI endpoints (if needed)
+fastapi
+uvicorn
+
+# For working with Jupyter notebooks
+notebook
