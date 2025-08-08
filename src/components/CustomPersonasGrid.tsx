@@ -21,32 +21,23 @@ const CustomPersonasGrid: React.FC<CustomPersonasGridProps> = ({
   // Fetch custom personas from localStorage
   const fetchCustomPersonas = () => {
     if (!user) {
-      console.log('🔍 CustomPersonasGrid: No user found');
       setCustomPersonas([]);
       setLoading(false);
       return;
     }
-
-    console.log('🎭 Fetching custom personas for user:', user.id);
     
     try {
       const userPersonasKey = `customPersonas_${user.id}`;
       const localPersonasRaw = localStorage.getItem(userPersonasKey);
       
-      console.log('🔑 Custom personas key:', userPersonasKey);
-      console.log('📦 Raw data:', localPersonasRaw);
-      
       if (localPersonasRaw) {
         const localPersonas = JSON.parse(localPersonasRaw);
-        console.log('✅ Custom personas loaded:', localPersonas.length, 'personas');
-        console.log('🎯 Personas data:', localPersonas);
         setCustomPersonas(localPersonas);
       } else {
-        console.log('📭 No custom personas found');
         setCustomPersonas([]);
       }
     } catch (error) {
-      console.error('💥 Error loading custom personas:', error);
+      console.error('Error loading custom personas:', error);
       setCustomPersonas([]);
     } finally {
       setLoading(false);
@@ -55,7 +46,6 @@ const CustomPersonasGrid: React.FC<CustomPersonasGridProps> = ({
 
   // Load personas on mount and when refresh trigger changes
   useEffect(() => {
-    console.log('🔄 CustomPersonasGrid: Refreshing...');
     setLoading(true);
     fetchCustomPersonas();
   }, [user, refreshTrigger]);
@@ -63,7 +53,6 @@ const CustomPersonasGrid: React.FC<CustomPersonasGridProps> = ({
   // Listen for custom persona creation events
   useEffect(() => {
     const handlePersonaCreated = () => {
-      console.log('📨 CustomPersonasGrid: Received persona creation event');
       fetchCustomPersonas();
     };
 
@@ -72,7 +61,6 @@ const CustomPersonasGrid: React.FC<CustomPersonasGridProps> = ({
   }, [user]);
 
   const handlePersonaClick = (persona: Persona) => {
-    console.log('🖱️ Custom persona clicked:', persona.name);
     if (onPersonaSelect) {
       onPersonaSelect(persona);
     } else {

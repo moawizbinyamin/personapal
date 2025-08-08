@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 import PersonaGrid from '@/components/PersonaGrid';
 import CustomPersonasGrid from '@/components/CustomPersonasGrid';
 import SimplePersonaCreator from '@/components/SimplePersonaCreator';
-import DebugPersonas from '@/components/DebugPersonas';
+// import DebugPersonas from '@/components/DebugPersonas'; // Keep in system but hidden from UI
 import { Persona, transformPersona } from '@/utils/types';
 import { defaultPersonas } from '@/data/personas';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,7 +54,6 @@ const Dashboard = () => {
     
     // Listen for custom events to refresh personas
     const handlePersonaCreated = () => {
-      console.log('Received personaCreated event, refreshing...');
       fetchCustomPersonas();
       fetchStats();
     };
@@ -68,30 +67,16 @@ const Dashboard = () => {
 
   const fetchCustomPersonas = async () => {
     if (!user) {
-      console.log('❌ fetchCustomPersonas: No user found');
       return;
     }
-
-    console.log('🔍 fetchCustomPersonas called for user:', user.id, 'email:', user.email);
     
     try {
       // Get personas from user-specific localStorage key
       const userPersonasKey = `customPersonas_${user.id}`;
-      console.log('🔑 Looking for localStorage key:', userPersonasKey);
-      
       const localPersonasRaw = localStorage.getItem(userPersonasKey);
-      console.log('📦 Raw localStorage data:', localPersonasRaw);
-      
       const localPersonas = JSON.parse(localPersonasRaw || '[]');
-      console.log('✅ Local personas found:', localPersonas.length, 'personas');
-      console.log('🎭 Local personas data:', localPersonas);
-      
-      // Also check for any old format personas (migration check)
-      const oldFormatPersonas = localStorage.getItem('customPersonas');
-      console.log('🔄 Old format check:', oldFormatPersonas ? 'Found old data' : 'No old data');
       
       // Try to get from database too
-      console.log('🗄️ Attempting database fetch...');
       const { data, error } = await supabase
         .from('personas')
         .select('*')
@@ -101,9 +86,6 @@ const Dashboard = () => {
       
       if (!error && data) {
         const dbPersonas = data.map(transformPersona);
-        console.log('🗄️ Database personas found:', dbPersonas.length, 'personas');
-        console.log('🗄️ Database personas data:', dbPersonas);
-        
         // Combine local and database personas (avoid duplicates by ID)
         const combinedPersonas = [...allCustomPersonas];
         dbPersonas.forEach(dbPersona => {
@@ -112,21 +94,14 @@ const Dashboard = () => {
           }
         });
         allCustomPersonas = combinedPersonas;
-      } else {
-        console.log('❌ Database fetch failed:', error);
-        console.log('📱 Using only local personas');
       }
-      
-      console.log('🎯 Final custom personas count:', allCustomPersonas.length);
-      console.log('🎯 Final custom personas:', allCustomPersonas);
       
       setCustomPersonas(allCustomPersonas);
       
       const newAllPersonas = [...defaultPersonas, ...allCustomPersonas];
       setAllPersonas(newAllPersonas);
-      console.log('🌟 All personas updated:', newAllPersonas.length, 'total (', defaultPersonas.length, 'default +', allCustomPersonas.length, 'custom)');
     } catch (error) {
-      console.error('💥 Error fetching custom personas:', error);
+      console.error('Error fetching custom personas:', error);
       // Fallback to local storage only
       const userPersonasKey = `customPersonas_${user.id}`;
       const localPersonas = JSON.parse(localStorage.getItem(userPersonasKey) || '[]');
@@ -164,8 +139,6 @@ const Dashboard = () => {
         .eq('user_id', user.id)
         .gte('created_at', today);
 
-      console.log('Stats updated:', { conversationCount, dbPersonaCount, localPersonas: localPersonas.length, totalCustomPersonas });
-
       setStats({
         totalConversations: conversationCount || 0,
         customPersonas: totalCustomPersonas,
@@ -181,8 +154,6 @@ const Dashboard = () => {
   };
 
   const handlePersonaCreated = async () => {
-    console.log('handlePersonaCreated called - refreshing personas...');
-    
     // Force a re-fetch and re-render
     setTimeout(async () => {
       await fetchCustomPersonas();
@@ -260,16 +231,7 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Debug Info - Temporary */}
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-            <strong>🔧 Debug Info:</strong>
-            <br />• User ID: {user?.id}
-            <br />• Built-in personas: {defaultPersonas.length}
-            <br />• Dashboard stats show: {stats.customPersonas} custom personas
-          </div>
-
           {/* Tab Navigation */}
-          <DebugPersonas />
           <div className="flex space-x-4 mb-8">
             <Button
               variant={activeTab === 'chat' ? 'default' : 'outline'}

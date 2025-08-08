@@ -72,13 +72,7 @@ const SimplePersonaCreator = ({ onPersonaCreated }: SimplePersonaCreatorProps) =
     setIsCreating(true);
     
     try {
-      console.log('Starting persona creation...');
-      console.log('User ID:', user.id);
-      console.log('User object:', user);
-
-      // TEMPORARY: Skip database and store locally for testing
-      console.log('Using local storage fallback...');
-
+      // Store persona locally with localStorage fallback
       const personaData = {
         id: `custom-${Date.now()}`, // Generate unique ID
         name: formData.name.trim(),
@@ -93,18 +87,13 @@ const SimplePersonaCreator = ({ onPersonaCreated }: SimplePersonaCreatorProps) =
         user_id: user.id
       };
 
-      console.log('Complete persona data:', personaData);
-
       // Store in localStorage with user-specific key
       const userPersonasKey = `customPersonas_${user.id}`;
       const existingPersonas = JSON.parse(localStorage.getItem(userPersonasKey) || '[]');
       existingPersonas.push(personaData);
       localStorage.setItem(userPersonasKey, JSON.stringify(existingPersonas));
 
-      console.log(`Persona stored locally for user ${user.id}. Total personas:`, existingPersonas.length);
-
       // Also try database insert in background (don't wait for it)
-      console.log('Attempting background database insert...');
       const backgroundInsert = async () => {
         try {
           const result = await supabase
@@ -121,9 +110,8 @@ const SimplePersonaCreator = ({ onPersonaCreated }: SimplePersonaCreatorProps) =
               example_dialogues: personaData.example_dialogues,
               user_id: personaData.user_id
             }]);
-          console.log('Background database insert result:', result);
         } catch (error) {
-          console.log('Background database insert failed:', error);
+          // Silently fail database insert, localStorage is primary
         }
       };
       backgroundInsert();
